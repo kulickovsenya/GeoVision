@@ -13,3 +13,4 @@ six==1.16.0
 scipy==1.13.1
 pdf2image==1.17.0
 pytesseract==0.3.10
+plotdigitizer==0.2.3
