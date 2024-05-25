@@ -85,15 +85,7 @@ def crop_image_by_segmentation(image):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-
-if __name__ == '__main__':
-    filename = r"GeoVision_dataset\well_1.PDF"
-    filename = conversion_to_jpeg(filename)
-    print(filename)
-
-    img = cv2.imread(filename)
-    if img is None:
-        raise ValueError("Image not found or path is incorrect")
+def extraire_different_colors(img, color):
 
     # Split the image into its BGR components
     blue, green, red = cv2.split(img)
@@ -138,84 +130,109 @@ if __name__ == '__main__':
 
     # Convert the image to grayscale
     gray_image = cv2.cvtColor(white_image, cv2.COLOR_BGR2GRAY)
+    if color =='red':
+        return red_only_image
+    elif color =='blue':
+        return blue_only_image
+    elif color == 'green':
+        return green_only_image
+    elif color == 'grey':
+        return gray_image
+    elif color == 'black':
+        return white_image
+
+
+
+def detect_long_horizontal_line(image):
+    # Convert the image to grayscale
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Detect edges using the Canny edge detector
     edges = cv2.Canny(gray_image, 50, 150, apertureSize=3)
+    # print(edges)
 
     # Detect lines using the Hough Line Transform
     lines = cv2.HoughLines(edges, 1, np.pi / 180, 200)
 
-    # Create an image to draw the lines on
-    line_image = np.zeros_like(white_image)
+    # print(lines)
 
-    # Draw the detected lines on the line image
+    # Initialize variables to hold the longest horizontal line's coordinates and length
+    longest_line = None
+    max_length = 0
+
     if lines is not None:
-        for rho, theta in lines[:, 0]:
-            a = np.cos(theta)
-            b = np.sin(theta)
-            x0 = a * rho
-            y0 = b * rho
-            x1 = int(x0 + 1000 * (-b))
-            y1 = int(y0 + 1000 * (a))
-            x2 = int(x0 - 1000 * (-b))
-            y2 = int(y0 - 1000 * (a))
-            cv2.line(line_image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        for line in lines:
+            rho, theta = line[0]
+            if abs(np.sin(theta)) > 0.5:  # Check if the line is more horizontal than vertical
+                # Calculate the endpoints of the line
+                a = np.cos(theta)
+                b = np.sin(theta)
+                x0 = a * rho
+                y0 = b * rho
+                x1 = int(x0 + 1000 * (-b))
+                y1 = int(y0 + 1000 * (a))
+                x2 = int(x0 - 1000 * (-b))
+                y2 = int(y0 - 1000 * (a))
 
-    # Combine the original image with the line image
-    segmented_image = cv2.addWeighted(white_image, 0.8, line_image, 1, 0)
+                # Calculate the length of the line
+                line_length = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
-    # Save the resulting image
-    cv2.imwrite(os.path.join('temp_files', 'segmented_image.jpg'), segmented_image)
+                # Update the longest line if the current one is longer
+                if line_length > max_length:
+                    max_length = line_length
+                    longest_line = ((x1, y1), (x2, y2))
 
-    # Optionally, display the images
-    cv2.imshow('Original Image', white_image)
-    # cv2.imshow('Edges', edges)
-    cv2.imshow('Line Image', line_image)
-    # cv2.imshow('Segmented Image', segmented_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 
-    # image = rotate_image(img, 90)
+    if longest_line is not None:
+        print(f"The longest horizontal line coordinates are: {longest_line}")
+        # Optionally, draw the longest horizontal line on the image
+        cv2.line(image, longest_line[0], longest_line[1], (0, 0, 255), 2)
+        # cv2.imshow('Longest Horizontal Line', image)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+        return x1, y1, x2, y2
+    else:
+        print("No horizontal line found")
+        return 0
+
+
+def crop_image(image, x1, y1, x2, y2):
+    # Ensure the coordinates are within the image dimensions
+    if x1 < 0 or y1 < 0 or x2 > image.shape[1] or y2 > image.shape[0]:
+        raise ValueError("The specified coordinates are out of image bounds")
+
+    # Crop the image using array slicing
+    cropped_image = image[y1:y2, x1:x2]
+
+    # Save the cropped image
+    # cv2.imwrite(output_path, cropped_image)
+
+    return cropped_image
+
+
+
+
+if __name__ == '__main__':
+    filename = r"GeoVision_dataset\well_1.PDF"
+    filename = conversion_to_jpeg(filename)
+    print(filename)
+
+    img = cv2.imread(filename)
+    if img is None:
+        raise ValueError("Image not found or path is incorrect")
+    image_hor = rotate_image(img, 90)
+
+    x1, y1, x2, y2 = detect_long_horizontal_line(image_hor)
+    # Example usage
+    img = crop_image(img, x1, y1, x2, y2)
+
+    extraire_different_colors(image_hor)
+
+    #
     # # Display the original and the line-detected image
     # plt.figure(figsize=(10, 5))
     # plt.subplot(1, 2, 1)
     # plt.title('Original Image')
     # plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     # plt.show()
-    #
-    # # Convert the image to grayscale
-    # gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #
-    # # Use Canny edge detector
-    # edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-    #
-    # # Use Hough Line Transform to detect lines
-    # lines = cv2.HoughLines(edges, 1, np.pi / 180, 200)
-    #
-    # # Create a copy of the original image to draw lines on
-    # line_image = image.copy()
-    #
-    # # Draw the vertical lines
-    # if lines is not None:
-    #     for rho, theta in lines[:, 0]:
-    #         # Filter for vertical lines based on the angle theta
-    #         if np.pi / 2 - 0.1 < theta < np.pi / 2 + 0.1:
-    #             a = np.cos(theta)
-    #             b = np.sin(theta)
-    #             x0 = a * rho
-    #             y0 = b * rho
-    #             x1 = int(x0 + 1000 * (-b))
-    #             y1 = int(y0 + 1000 * (a))
-    #             x2 = int(x0 - 1000 * (-b))
-    #             y2 = int(y0 - 1000 * (a))
-    #             cv2.line(line_image, (x1, y1), (x2, y2), (0, 0, 255), 2)
-    #
-    # # Display the original and the line-detected image
-    # plt.figure(figsize=(10, 5))
-    # plt.subplot(1, 2, 1)
-    # plt.title('Original Image')
-    # plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    # plt.subplot(1, 2, 2)
-    # plt.title('Detected Vertical Lines')
-    # plt.imshow(cv2.cvtColor(line_image, cv2.COLOR_BGR2RGB))
-    # plt.show()
+
